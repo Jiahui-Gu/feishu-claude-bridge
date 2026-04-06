@@ -104,9 +104,15 @@ function spawnClaude(prompt, sessionId) {
         const { text, sessionId: returnedSessionId } = parseClaudeOutput(stdout);
         resolve({ text, returnedSessionId });
       } catch (parseErr) {
-        // If JSON parsing fails, return raw stdout as fallback
-        logger.warn('Failed to parse Claude JSON output, using raw output');
-        resolve({ text: stdout.trim() || stderr.trim() || '(empty response)', returnedSessionId: null });
+        logger.warn('Failed to parse Claude JSON output:', parseErr.message);
+        logger.warn('Raw stdout (first 500 chars):', stdout.slice(0, 500));
+
+        // Try to extract session_id even from malformed JSON
+        let fallbackSessionId = null;
+        const match = stdout.match(/"session_id"\s*:\s*"([^"]+)"/);
+        if (match) fallbackSessionId = match[1];
+
+        resolve({ text: stdout.trim() || stderr.trim() || '(empty response)', returnedSessionId: fallbackSessionId });
       }
     });
 
