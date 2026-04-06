@@ -129,7 +129,7 @@ function parseClaudeOutput(raw) {
   // Extract session_id from the response
   const sessionId = parsed.session_id || null;
 
-  // The JSON output format has a "result" field containing the final text
+  // Start with the result text
   let text;
   if (typeof parsed.result === 'string') {
     text = parsed.result;
@@ -139,7 +139,33 @@ function parseClaudeOutput(raw) {
     text = JSON.stringify(parsed, null, 2);
   }
 
+  // Append any AskUserQuestion options from permission_denials
+  if (Array.isArray(parsed.permission_denials)) {
+    for (const denial of parsed.permission_denials) {
+      if (denial.tool_name === 'AskUserQuestion' && denial.tool_input?.questions) {
+        text += formatQuestions(denial.tool_input.questions);
+      }
+    }
+  }
+
   return { text, sessionId };
+}
+
+/**
+ * Format AskUserQuestion options as readable text.
+ */
+function formatQuestions(questions) {
+  let output = '';
+  for (const q of questions) {
+    output += `\n\n${q.question}`;
+    if (Array.isArray(q.options)) {
+      q.options.forEach((opt, i) => {
+        output += `\n${i + 1}. ${opt.label}`;
+        if (opt.description) output += ` — ${opt.description}`;
+      });
+    }
+  }
+  return output;
 }
 
 /**
