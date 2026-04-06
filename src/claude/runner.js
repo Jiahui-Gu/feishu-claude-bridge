@@ -64,7 +64,6 @@ function spawnClaude(prompt, sessionId) {
       cwd: config.claude.workDir,
       env,
       stdio: ['ignore', 'pipe', 'pipe'],
-      shell: true,
     });
 
     let stdout = '';
