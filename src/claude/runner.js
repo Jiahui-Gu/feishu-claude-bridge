@@ -15,7 +15,7 @@ async function runClaude(prompt, sessionId) {
   if (activeTasks >= config.claude.maxConcurrent) {
     return {
       success: false,
-      error: `系统繁忙，当前有 ${activeTasks} 个任务正在执行（最大 ${config.claude.maxConcurrent}）。请稍后再试。`,
+      error: `Too many tasks running (${activeTasks}/${config.claude.maxConcurrent}). Please try again later.`,
     };
   }
 
@@ -86,7 +86,7 @@ function spawnClaude(prompt, sessionId) {
       setTimeout(() => {
         if (!child.killed) child.kill('SIGKILL');
       }, 5000);
-      reject(new Error(`Claude 执行超时（${Math.round(config.claude.timeout / 60000)} 分钟），任务已终止。`));
+      reject(new Error(`Claude timed out after ${Math.round(config.claude.timeout / 60000)} minutes. Task killed.`));
     }, config.claude.timeout);
 
     child.on('close', (code) => {
@@ -94,7 +94,7 @@ function spawnClaude(prompt, sessionId) {
       logger.debug(`Claude process exited with code ${code}`);
 
       if (code !== 0 && !stdout) {
-        const errorMsg = stderr.trim() || `Claude 进程异常退出（退出码: ${code}）`;
+        const errorMsg = stderr.trim() || `Claude process exited with code ${code}`;
         reject(new Error(errorMsg));
         return;
       }
@@ -112,7 +112,7 @@ function spawnClaude(prompt, sessionId) {
 
     child.on('error', (err) => {
       clearTimeout(timer);
-      reject(new Error(`无法启动 Claude CLI: ${err.message}`));
+      reject(new Error(`Failed to start Claude CLI: ${err.message}`));
     });
   });
 }

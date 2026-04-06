@@ -91,7 +91,7 @@ async function handleMessage(data, client) {
 
   // Send processing indicator
   try {
-    await sendText(client, chatId, '⏳ 正在处理，请稍候...');
+    await sendText(client, chatId, 'Processing...');
     logger.info('Sent processing indicator');
   } catch (err) {
     logger.error('Failed to send processing indicator:', err.message);
@@ -141,33 +141,33 @@ async function handleSpecialCommand(text, chatId, client) {
 
   if (command === '/reset' || command === '/new') {
     sessionManager.resetSession(chatId);
-    await sendText(client, chatId, '🔄 会话已重置，开始全新对话。');
+    await sendText(client, chatId, 'Session cleared. Starting fresh.');
     return true;
   }
 
   if (command === '/status') {
     const activeTasks = getActiveTaskCount();
     const sessionInfo = sessionManager.getSessionInfo(chatId);
-    let status = `📊 状态\n\n`;
-    status += `• 活跃任务: ${activeTasks}\n`;
+    let status = `Status\n\n`;
+    status += `Active tasks: ${activeTasks}\n`;
     if (sessionInfo) {
-      status += `• 当前会话: ${sessionInfo.sessionId.slice(0, 8)}...\n`;
-      status += `• 会话创建: ${sessionInfo.createdAt}\n`;
-      status += `• 最近使用: ${sessionInfo.lastUsedAt}\n`;
+      status += `Session: ${sessionInfo.sessionId.slice(0, 8)}...\n`;
+      status += `Created: ${sessionInfo.createdAt}\n`;
+      status += `Last used: ${sessionInfo.lastUsedAt}\n`;
     } else {
-      status += `• 当前会话: 无（发送消息将自动创建）\n`;
+      status += `Session: none (will be created on first message)\n`;
     }
     await sendText(client, chatId, status);
     return true;
   }
 
   if (command === '/help') {
-    const help = `🤖 Claude Code Bridge 帮助\n\n` +
-      `直接发送消息即可与 Claude Code 对话。\n\n` +
-      `特殊命令:\n` +
-      `• /reset 或 /new — 清除当前会话，重新开始\n` +
-      `• /status — 查看当前状态\n` +
-      `• /help — 显示此帮助信息`;
+    const help = `Claude Code Bridge\n\n` +
+      `Send any message to chat with Claude Code.\n\n` +
+      `Commands:\n` +
+      `/reset or /new - Clear session, start fresh\n` +
+      `/status - View current status\n` +
+      `/help - Show this help`;
     await sendText(client, chatId, help);
     return true;
   }

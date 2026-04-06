@@ -9,7 +9,7 @@ const MAX_OUTPUT_LENGTH = 3500;
  */
 function formatClaudeResult(result) {
   if (!result.success) {
-    return `❌ 错误\n\n${result.error}`;
+    return `Error\n\n${result.error}`;
   }
 
   let text = result.result || '(empty response)';
@@ -19,7 +19,7 @@ function formatClaudeResult(result) {
 
   // Truncate if too long
   if (text.length > MAX_OUTPUT_LENGTH) {
-    text = text.slice(0, MAX_OUTPUT_LENGTH) + '\n\n... (输出过长，已截断)';
+    text = text.slice(0, MAX_OUTPUT_LENGTH) + '\n\n... (truncated)';
   }
 
   // Add execution time
