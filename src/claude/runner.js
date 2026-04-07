@@ -46,7 +46,6 @@ function spawnClaude(prompt, sessionId, onStatus) {
       '-p', prompt,
       '--output-format', 'stream-json',
       '--verbose',
-      '--max-turns', String(config.claude.maxTurns),
       '--dangerously-skip-permissions',
     ];
 
