@@ -68,9 +68,12 @@ function spawnClaude(prompt, sessionId, onStatus) {
     });
 
     let resultText = '';
+    let resultSubtype = '';
     let returnedSessionId = null;
     let buffer = '';
     let lastStatusTime = 0;
+    let lastAssistantText = '';
+    let toolsUsed = [];
     const STATUS_THROTTLE = 2000; // Min ms between status updates
 
     child.stdout.on('data', (data) => {
@@ -91,9 +94,22 @@ function spawnClaude(prompt, sessionId, onStatus) {
             returnedSessionId = event.session_id;
           }
 
+          // Track assistant text messages (for fallback if result is empty)
+          if (event.type === 'assistant' && event.message?.content) {
+            for (const block of event.message.content) {
+              if (block.type === 'text' && block.text) {
+                lastAssistantText = block.text;
+              }
+              if (block.type === 'tool_use') {
+                toolsUsed.push(block.name);
+              }
+            }
+          }
+
           // Capture final result
           if (event.type === 'result') {
             resultText = extractResultText(event);
+            resultSubtype = event.subtype || '';
             if (event.session_id) returnedSessionId = event.session_id;
           }
         } catch (e) {
@@ -135,13 +151,27 @@ function spawnClaude(prompt, sessionId, onStatus) {
         }
       }
 
-      if (code !== 0 && !resultText) {
+      if (code !== 0 && !resultText && !lastAssistantText) {
         const errorMsg = stderr.trim() || `Claude process exited with code ${code}`;
         reject(new Error(errorMsg));
         return;
       }
 
-      resolve({ text: resultText || '(empty response)', returnedSessionId });
+      // If result is empty, use fallback
+      let finalText = resultText;
+      if (!finalText) {
+        if (lastAssistantText) {
+          finalText = lastAssistantText;
+        } else if (resultSubtype === 'error_max_turns') {
+          finalText = `Claude reached the maximum number of turns (${config.claude.maxTurns}). ` +
+            `Used tools: ${toolsUsed.join(', ') || 'none'}. ` +
+            `Send a follow-up message to continue.`;
+        } else {
+          finalText = '(empty response)';
+        }
+      }
+
+      resolve({ text: finalText, returnedSessionId });
     });
 
     child.on('error', (err) => {
