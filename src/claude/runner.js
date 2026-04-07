@@ -122,17 +122,7 @@ function spawnClaude(prompt, sessionId, onStatus) {
       stderr += data.toString();
     });
 
-    const timer = setTimeout(() => {
-      logger.warn(`Claude process timed out after ${config.claude.timeout}ms, killing...`);
-      child.kill('SIGTERM');
-      setTimeout(() => {
-        if (!child.killed) child.kill('SIGKILL');
-      }, 5000);
-      reject(new Error(`Claude timed out after ${Math.round(config.claude.timeout / 60000)} minutes. Task killed.`));
-    }, config.claude.timeout);
-
     child.on('close', (code) => {
-      clearTimeout(timer);
 
       // Process any remaining buffer
       if (buffer.trim()) {
