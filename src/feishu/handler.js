@@ -1,4 +1,4 @@
-const { sendText } = require('./sender');
+const { sendText, sendTextGetId, updateCard } = require('./sender');
 const { runClaude, getActiveTaskCount } = require('../claude/runner');
 const sessionManager = require('../claude/session');
 const { formatClaudeResult } = require('../formatter');
@@ -50,7 +50,6 @@ async function handleMessage(data, client) {
   }
   if (eventId) {
     processedEvents.add(eventId);
-    // Prevent cache from growing unbounded
     if (processedEvents.size > MAX_PROCESSED_CACHE) {
       const firstKey = processedEvents.values().next().value;
       processedEvents.delete(firstKey);
@@ -89,10 +88,11 @@ async function handleMessage(data, client) {
     return;
   }
 
-  // Send processing indicator
+  // Send processing indicator as a card (so we can update it later)
+  let statusMsgId = null;
   try {
-    await sendText(client, chatId, 'Processing...');
-    logger.info('Sent processing indicator');
+    statusMsgId = await sendTextGetId(client, chatId, 'Processing...');
+    logger.info('Sent processing indicator, msgId:', statusMsgId);
   } catch (err) {
     logger.error('Failed to send processing indicator:', err.message);
   }
@@ -100,32 +100,50 @@ async function handleMessage(data, client) {
   // Get existing session ID (null if new chat)
   const existingSessionId = sessionManager.getSessionId(chatId);
 
-  // Queue Claude calls per chat to avoid "session already in use" errors
+  // Queue Claude calls per chat
   const task = async () => {
     logger.info('Calling Claude Code...');
-    const result = await runClaude(text, existingSessionId);
+
+    // Status update callback: update the processing card in real-time
+    const onStatus = (statusText) => {
+      if (statusMsgId) {
+        updateCard(client, statusMsgId, statusText).catch(() => {});
+      }
+    };
+
+    const result = await runClaude(text, existingSessionId, onStatus);
     logger.info('Claude Code returned:', result.success ? 'success' : 'error', `(${result.duration}ms)`);
 
-    // Save the session ID returned by Claude (for new sessions or to confirm)
     if (result.success && result.sessionId) {
       sessionManager.setSessionId(chatId, result.sessionId);
     }
 
     const response = formatClaudeResult(result);
-    try {
-      await sendText(client, chatId, response);
-      logger.info('Sent Claude response to Feishu');
-    } catch (err) {
-      logger.error('Failed to send Claude response:', err.message);
+
+    // Update the processing card with final result, or send new message if card update fails
+    if (statusMsgId) {
+      try {
+        await updateCard(client, statusMsgId, response);
+        logger.info('Updated processing card with Claude response');
+      } catch (err) {
+        logger.error('Failed to update card, sending new message:', err.message);
+        await sendText(client, chatId, response);
+      }
+    } else {
+      try {
+        await sendText(client, chatId, response);
+        logger.info('Sent Claude response to Feishu');
+      } catch (err) {
+        logger.error('Failed to send Claude response:', err.message);
+      }
     }
   };
 
   // Chain onto existing queue for this chat, or start new one
   const prev = chatQueues.get(chatId) || Promise.resolve();
-  const next = prev.then(task, task); // run even if previous failed
+  const next = prev.then(task, task);
   chatQueues.set(chatId, next);
   next.finally(() => {
-    // Clean up if this is still the latest task
     if (chatQueues.get(chatId) === next) {
       chatQueues.delete(chatId);
     }

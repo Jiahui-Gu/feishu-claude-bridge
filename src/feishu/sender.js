@@ -136,8 +136,49 @@ function splitMessage(text, maxLength) {
   return chunks;
 }
 
+/**
+ * Send a plain text message and return the message_id.
+ * Used for the processing indicator so it can be updated later.
+ */
+async function sendTextGetId(client, chatId, text, receiveIdType = 'chat_id') {
+  try {
+    const resp = await client.im.message.create({
+      params: { receive_id_type: receiveIdType },
+      data: {
+        receive_id: chatId,
+        msg_type: 'interactive',
+        content: JSON.stringify({
+          elements: [{ tag: 'markdown', content: text }],
+        }),
+      },
+    });
+    return resp?.data?.message_id || null;
+  } catch (err) {
+    logger.error(`Failed to send message to ${chatId}:`, err.message);
+    return null;
+  }
+}
+
+/**
+ * Update an existing card message with new content.
+ */
+async function updateCard(client, messageId, text) {
+  try {
+    await client.im.message.patch({
+      path: { message_id: messageId },
+      data: {
+        content: JSON.stringify({
+          elements: [{ tag: 'markdown', content: text }],
+        }),
+      },
+    });
+  } catch (err) {
+    logger.error(`Failed to update message ${messageId}:`, err.message);
+  }
+}
+
 function sleep(ms) {
   return new Promise((resolve) => setTimeout(resolve, ms));
 }
 
-module.exports = { sendText };
+module.exports = { sendText, sendTextGetId, updateCard };
