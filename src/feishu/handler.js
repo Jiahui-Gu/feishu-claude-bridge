@@ -56,9 +56,9 @@ async function handleMessage(data, client) {
     }
   }
 
-  // Only handle text messages
-  if (message.message_type !== 'text') {
-    logger.debug(`Ignoring non-text message type: ${message.message_type}`);
+  // Only handle text and post (rich text) messages
+  if (message.message_type !== 'text' && message.message_type !== 'post') {
+    logger.debug(`Ignoring message type: ${message.message_type}`);
     return;
   }
 
@@ -66,7 +66,11 @@ async function handleMessage(data, client) {
   let text;
   try {
     const content = JSON.parse(message.content);
-    text = content.text || '';
+    if (message.message_type === 'post') {
+      text = extractPostText(content);
+    } else {
+      text = content.text || '';
+    }
   } catch {
     logger.warn('Failed to parse message content');
     return;
@@ -191,6 +195,35 @@ async function handleSpecialCommand(text, chatId, client) {
   }
 
   return false;
+}
+
+/**
+ * Extract plain text from a Feishu "post" (rich text) message.
+ * Post content is structured as: { title, content: [[{tag, text, href, ...}]] }
+ */
+function extractPostText(content) {
+  const parts = [];
+  const title = content.title;
+  if (title) parts.push(title);
+
+  // content is an array of paragraphs, each paragraph is an array of elements
+  const paragraphs = content.content || [];
+  for (const paragraph of paragraphs) {
+    const line = [];
+    for (const element of paragraph) {
+      if (element.tag === 'text' && element.text) {
+        line.push(element.text);
+      } else if (element.tag === 'a' && element.href) {
+        const label = element.text || element.href;
+        line.push(`${label} (${element.href})`);
+      } else if (element.tag === 'at' && element.user_name) {
+        // skip @mentions
+      }
+    }
+    if (line.length > 0) parts.push(line.join(''));
+  }
+
+  return parts.join('\n');
 }
 
 module.exports = { registerHandlers };
